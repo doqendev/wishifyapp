@@ -1,0 +1,156 @@
+{% comment %}
+Wishlist Heart Block
+Interactive heart button for adding/removing products from wishlist
+{% endcomment %}
+
+{%- liquid
+  assign product_id = product.id | default: block.settings.product.id
+  assign customer_id = customer.id
+-%}
+
+<!-- Include the API snippet -->
+{% render 'wishlist_api' %}
+
+<div class="wishlist-heart-container" data-product-id="{{ product_id }}">
+  <button 
+    type="button" 
+    class="wishlist-heart-btn"
+    data-product-id="{{ product_id }}"
+    data-customer-id="{{ customer_id }}"
+    aria-label="Add to wishlist"
+  >
+    <svg 
+      class="wishlist-heart-icon" 
+      width="24" 
+      height="24" 
+      viewBox="0 0 24 24" 
+      fill="none" 
+      stroke="currentColor" 
+      stroke-width="2"
+    >
+      <path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z"/>
+    </svg>
+  </button>
+</div>
+
+<style>
+  .wishlist-heart-container {
+    position: absolute;
+    top: 12px;
+    right: 12px;
+    z-index: 10;
+  }
+
+  .wishlist-heart-btn {
+    background: rgba(255, 255, 255, 0.95);
+    border: none;
+    border-radius: 50%;
+    width: 40px;
+    height: 40px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    cursor: pointer;
+    transition: all 0.2s ease;
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+  }
+
+  .wishlist-heart-btn:hover {
+    background: rgba(255, 255, 255, 1);
+    transform: scale(1.1);
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+  }
+
+  .wishlist-heart-btn:disabled {
+    opacity: 0.6;
+    cursor: not-allowed;
+    transform: none;
+  }
+
+  .wishlist-heart-btn.in-wishlist {
+    background: #e74c3c;
+    color: white;
+  }
+
+  .wishlist-heart-btn.in-wishlist:hover {
+    background: #c0392b;
+  }
+
+  .wishlist-heart-icon {
+    color: #666;
+    transition: all 0.2s ease;
+  }
+
+  .wishlist-heart-btn.in-wishlist .wishlist-heart-icon {
+    transform: scale(1.1);
+    color: white;
+  }
+
+  .wishlist-heart-btn:hover .wishlist-heart-icon {
+    color: #e74c3c;
+  }
+
+  .wishlist-heart-btn.in-wishlist:hover .wishlist-heart-icon {
+    color: white;
+  }
+</style>
+
+<script>
+  document.addEventListener('DOMContentLoaded', function() {
+    const heartButton = document.querySelector('[data-product-id="{{ product_id }}"] .wishlist-heart-btn');
+    
+    if (!heartButton) return;
+    
+    heartButton.addEventListener('click', async function(e) {
+      e.preventDefault();
+      e.stopPropagation();
+      
+      const productId = this.getAttribute('data-product-id');
+      const customerId = this.getAttribute('data-customer-id');
+      const isInWishlist = this.classList.contains('in-wishlist');
+      
+      if (!customerId) {
+        if (confirm('You need to be logged in to add items to your wishlist. Would you like to sign in?')) {
+          window.location.href = '{{ routes.account_login_url }}?return_url=' + encodeURIComponent(window.location.pathname);
+        }
+        return;
+      }
+      
+      if (!window.WishlistAPI) {
+        console.error('WishlistAPI not found. Make sure wishlist_api snippet is included.');
+        return;
+      }
+      
+      // Disable button during request
+      this.disabled = true;
+      
+      try {
+        if (isInWishlist) {
+          await window.WishlistAPI.removeFromWishlist(productId);
+        } else {
+          await window.WishlistAPI.addToWishlist(productId);
+        }
+      } catch (error) {
+        console.error('Error toggling wishlist:', error);
+      } finally {
+        // Re-enable button
+        this.disabled = false;
+      }
+    });
+  });
+</script>
+
+{% schema %}
+{
+  "name": "Wishlist Heart",
+  "target": "section",
+  "settings": [
+    {
+      "type": "product",
+      "id": "product",
+      "label": "Product",
+      "info": "Leave empty to use the current product"
+    }
+  ]
+}
+{% endschema %}

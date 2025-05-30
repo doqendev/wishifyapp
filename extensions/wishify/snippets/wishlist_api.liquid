@@ -1,0 +1,207 @@
+{% comment %}
+Wishlist API Client
+Provides JavaScript functions to interact with the wishlist API
+{% endcomment %}
+
+<script>
+window.WishlistAPI = {
+  async addToWishlist(productId, variantId = null) {
+    const customerId = {{ customer.id | json }};
+    const shop = Shopify.shop;
+    
+    if (!customerId) {
+      if (confirm('You need to be logged in to add items to your wishlist. Would you like to sign in?')) {
+        window.location.href = '{{ routes.account_login_url }}';
+      }
+      return false;
+    }
+
+    try {
+      const response = await fetch('/apps/proxy/wishlist', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          customerId: customerId.toString(),
+          productId: productId.toString(),
+          variantId: variantId ? variantId.toString() : null,
+          shop: shop
+        })
+      });
+
+      if (response.ok) {
+        const data = await response.json();
+        this.updateHeartButton(productId, true);
+        this.showNotification('Added to wishlist!', 'success');
+        return true;
+      } else {
+        throw new Error('Failed to add to wishlist');
+      }
+    } catch (error) {
+      console.error('Error adding to wishlist:', error);
+      this.showNotification('Failed to add to wishlist', 'error');
+      return false;
+    }
+  },
+
+  async removeFromWishlist(productId) {
+    const customerId = {{ customer.id | json }};
+    const shop = Shopify.shop;
+    
+    if (!customerId) {
+      return false;
+    }
+
+    try {
+      const response = await fetch('/apps/proxy/wishlist', {
+        method: 'DELETE',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          customerId: customerId.toString(),
+          productId: productId.toString(),
+          shop: shop
+        })
+      });
+
+      if (response.ok) {
+        this.updateHeartButton(productId, false);
+        this.showNotification('Removed from wishlist', 'info');
+        return true;
+      } else {
+        throw new Error('Failed to remove from wishlist');
+      }
+    } catch (error) {
+      console.error('Error removing from wishlist:', error);
+      this.showNotification('Failed to remove from wishlist', 'error');
+      return false;
+    }
+  },
+
+  async checkWishlistStatus(productId) {
+    const customerId = {{ customer.id | json }};
+    const shop = Shopify.shop;
+    
+    if (!customerId) {
+      return false;
+    }
+
+    try {
+      const response = await fetch(`/apps/proxy/wishlist/check?customerId=${customerId}&productId=${productId}&shop=${shop}`);
+      
+      if (response.ok) {
+        const data = await response.json();
+        return data.inWishlist;
+      }
+    } catch (error) {
+      console.error('Error checking wishlist status:', error);
+    }
+    
+    return false;
+  },
+
+  async loadWishlist() {
+    const customerId = {{ customer.id | json }};
+    const shop = Shopify.shop;
+    
+    if (!customerId) {
+      return { wishlist: null, items: [] };
+    }
+
+    try {
+      const response = await fetch(`/apps/proxy/wishlist?customerId=${customerId}&shop=${shop}`);
+      
+      if (response.ok) {
+        return await response.json();
+      } else {
+        throw new Error('Failed to load wishlist');
+      }
+    } catch (error) {
+      console.error('Error loading wishlist:', error);
+      return { wishlist: null, items: [] };
+    }
+  },
+
+  updateHeartButton(productId, isInWishlist) {
+    const buttons = document.querySelectorAll(`[data-product-id="${productId}"] .wishlist-heart-btn`);
+    buttons.forEach(button => {
+      const icon = button.querySelector('.wishlist-heart-icon');
+      if (icon) {
+        if (isInWishlist) {
+          button.classList.add('in-wishlist');
+          icon.setAttribute('fill', 'currentColor');
+          button.setAttribute('aria-label', 'Remove from wishlist');
+        } else {
+          button.classList.remove('in-wishlist');
+          icon.setAttribute('fill', 'none');
+          button.setAttribute('aria-label', 'Add to wishlist');
+        }
+      }
+    });
+  },
+
+  showNotification(message, type = 'info') {
+    // Create a simple notification
+    const notification = document.createElement('div');
+    notification.className = `wishlist-notification wishlist-notification--${type}`;
+    notification.textContent = message;
+    
+    // Style the notification
+    Object.assign(notification.style, {
+      position: 'fixed',
+      top: '20px',
+      right: '20px',
+      background: type === 'success' ? '#28a745' : type === 'error' ? '#dc3545' : '#007bff',
+      color: 'white',
+      padding: '12px 20px',
+      borderRadius: '6px',
+      fontSize: '14px',
+      fontWeight: '500',
+      zIndex: '9999',
+      boxShadow: '0 4px 12px rgba(0, 0, 0, 0.15)',
+      transform: 'translateX(100%)',
+      transition: 'transform 0.3s ease'
+    });
+
+    document.body.appendChild(notification);
+
+    // Animate in
+    setTimeout(() => {
+      notification.style.transform = 'translateX(0)';
+    }, 10);
+
+    // Animate out and remove
+    setTimeout(() => {
+      notification.style.transform = 'translateX(100%)';
+      setTimeout(() => {
+        if (notification.parentNode) {
+          notification.parentNode.removeChild(notification);
+        }
+      }, 300);
+    }, 3000);
+  },
+
+  // Initialize wishlist status for all heart buttons on the page
+  async initializeHeartButtons() {
+    const heartButtons = document.querySelectorAll('.wishlist-heart-btn');
+    const productIds = Array.from(heartButtons).map(btn => btn.getAttribute('data-product-id')).filter(Boolean);
+    const uniqueProductIds = [...new Set(productIds)];
+
+    for (const productId of uniqueProductIds) {
+      const isInWishlist = await this.checkWishlistStatus(productId);
+      this.updateHeartButton(productId, isInWishlist);
+    }  }
+};
+
+// Initialize heart buttons when the page loads
+document.addEventListener('DOMContentLoaded', function() {
+  window.WishlistAPI.initializeHeartButtons();
+});
+
+// Re-initialize when new content is loaded (for AJAX/SPA updates)
+document.addEventListener('shopify:section:load', function() {
+  window.WishlistAPI.initializeHeartButtons();
+});
+</script>

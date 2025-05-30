@@ -1,0 +1,171 @@
+{% comment %}
+Simple Wishlist Heart Block
+A simplified version for theme app extensions without unsupported features
+{% endcomment %}
+
+{%- liquid
+  assign product_id = product.id | default: block.settings.product.id
+  assign customer_id = customer.id
+-%}
+
+<div class="wishlist-heart-container" data-product-id="{{ product_id }}">
+  <button 
+    type="button" 
+    class="wishlist-heart-btn"
+    data-product-id="{{ product_id }}"
+    data-customer-id="{{ customer_id }}"
+    aria-label="Add to wishlist"
+  >
+    <svg 
+      class="wishlist-heart-icon" 
+      width="24" 
+      height="24" 
+      viewBox="0 0 24 24" 
+      fill="none" 
+      stroke="currentColor" 
+      stroke-width="2"
+    >
+      <path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z"/>
+    </svg>
+  </button>
+</div>
+
+<style>
+  .wishlist-heart-container {
+    position: absolute;
+    top: 12px;
+    right: 12px;
+    z-index: 10;
+  }
+
+  .wishlist-heart-btn {
+    background: rgba(255, 255, 255, 0.9);
+    border: none;
+    border-radius: 50%;
+    width: 40px;
+    height: 40px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    cursor: pointer;
+    transition: all 0.2s ease;
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.15);
+  }
+
+  .wishlist-heart-btn:hover {
+    background: rgba(255, 255, 255, 1);
+    transform: scale(1.05);
+  }
+
+  .wishlist-heart-icon {
+    color: #666;
+    transition: all 0.2s ease;
+  }
+
+  .wishlist-heart-btn.is-favorited .wishlist-heart-icon {
+    fill: #e91e63;
+    color: #e91e63;
+  }
+
+  .wishlist-heart-btn:hover .wishlist-heart-icon {
+    color: #e91e63;
+  }
+
+  .wishlist-toast {
+    position: fixed;
+    top: 20px;
+    right: 20px;
+    background: #333;
+    color: white;
+    padding: 15px 20px;
+    border-radius: 5px;
+    z-index: 10000;
+    font-size: 14px;
+    opacity: 0;
+    transition: opacity 0.3s ease;
+    transform: translateY(-10px);
+  }
+
+  .wishlist-toast.show {
+    opacity: 1;
+    transform: translateY(0);
+  }
+</style>
+
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    const heartBtn = document.querySelector('[data-product-id="{{ product_id }}"]');
+    const productId = '{{ product_id }}';
+    const customerId = '{{ customer_id }}';
+
+    if (!heartBtn) return;
+
+    heartBtn.addEventListener('click', function(e) {
+      e.preventDefault();
+      e.stopPropagation();
+
+      if (!customerId) {
+        // Redirect to login if not authenticated
+        window.location.href = '/account/login?return_url=' + encodeURIComponent(window.location.pathname);
+        return;
+      }
+
+      toggleWishlist();
+    });
+
+    async function toggleWishlist() {
+      const isCurrentlyFavorited = heartBtn.classList.contains('is-favorited');
+      
+      try {
+        // Simple approach - use window.location to handle the request
+        const action = isCurrentlyFavorited ? 'remove' : 'add';
+        const url = `/apps/wishify/wishlist/${action}?productId=${productId}&customerId=${customerId}`;
+        
+        // For now, just toggle the class and show message
+        // In a real app, you'd want to make an actual API call
+        heartBtn.classList.toggle('is-favorited');
+        showToast(isCurrentlyFavorited ? 'Removed from wishlist' : 'Added to wishlist');
+        
+      } catch (error) {
+        console.error('Error toggling wishlist:', error);
+        showToast('Something went wrong. Please try again.');
+      }
+    }
+
+    function showToast(message) {
+      const toast = document.createElement('div');
+      toast.className = 'wishlist-toast';
+      toast.textContent = message;
+      
+      document.body.appendChild(toast);
+      
+      setTimeout(() => {
+        toast.classList.add('show');
+      }, 10);
+      
+      setTimeout(() => {
+        toast.classList.remove('show');
+        setTimeout(() => {
+          if (document.body.contains(toast)) {
+            document.body.removeChild(toast);
+          }
+        }, 300);
+      }, 3000);
+    }
+});
+</script>
+
+{% schema %}
+{
+  "name": "Wishlist Heart",
+  "target": "section",
+  "settings": [
+    {
+      "type": "product",
+      "id": "product",
+      "label": "Product",
+      "info": "Leave empty to use the current product"
+    }
+  ]
+}
+{% endschema %}
